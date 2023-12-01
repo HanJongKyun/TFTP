@@ -3,7 +3,7 @@
 $ tftp ip_address [-p port_mumber] <get|put> filename
 '''
 import socket
-import argparse.
+import argparse
 # import validators
 from struct import pack
 
