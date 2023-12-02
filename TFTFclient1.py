@@ -51,8 +51,6 @@ parser.add_argument(dest="filename", help="name of file to transfer", type=str)
 parser.add_argument("-p", "--port", dest="port", type=int)
 args = parser.parse_args()
 
-
-# UDP 소켓 생성
 server_ip = args.host
 server_port = DEFAULT_PORT
 server_address = (server_ip, server_port)
