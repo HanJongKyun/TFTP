@@ -29,24 +29,44 @@ ERROR_CODE = {
 
 # WRQ(쓰기 요청) 메시지를 보내는 함수
 def send_wrq(filename, mode):
+    # 포맷 문자열을 생성. >는 빅엔디안 형식
     format_string = f'>h{len(filename)}sB{len(mode)}sB'
+    # pack 함수를 사용하여 WRQ 메시지를 바이트로 패킹
+    # OPCODE['WRQ']는 2바이트의 WRQ 메시지의 연산 코드
+    # bytes(filename, 'utf-8')은 파일 이름을 UTF-8 형식으로 인코딩한 것
+    # 0은 문자열 끝을 나타내는 null byte
     wrq_message = pack(format_string, OPCODE['WRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
+    # 패킹된 WRQ 메시지를 서버 주소로 송신
     sock.sendto(wrq_message, server_address)
+    # 생성된 WRQ 메시지를 출력
     print(wrq_message)
 
 # RRQ(읽기 요청) 메시지를 보내는 함수
 def send_rrq(filename, mode):
+    # 포맷 문자열을 생성합니다. '>'는 빅엔디안 형식을 의미
     format = f'>h{len(filename)}sB{len(mode)}sB'
+    # pack 함수를 사용하여 RRQ 메시지를 바이트로 패킹
+    # OPCODE['RRQ']는 2바이트의 RRQ 메시지의 연산 코드
+    # bytes(filename, 'utf-8')은 파일 이름을 UTF-8 형식으로 인코딩한 것
+    # 0은 문자열 끝을 나타내는 null byte
     rrq_message = pack(format, OPCODE['RRQ'], bytes(filename, 'utf-8'), 0, bytes(mode, 'utf-8'), 0)
+    # 패킹된 RRQ 메시지를 서버 주소로 송신
     sock.sendto(rrq_message, server_address)
+    # 생성된 RRQ 메시지를 출력
     print(rrq_message)
 
 # ACK(확인 응답) 메시지를 보내는 함수
 def send_ack(seq_num, server):
     format = f'>hh'
+    # pack 함수를 사용하여 ACK 메시지를 바이트로 패킹
+    # OPCODE['ACK']는 2바이트의 ACK 메시지의 연산 코드
+    # seq_num은 블록 번호
     ack_message = pack(format, OPCODE['ACK'], seq_num)
+    # 패킹된 ACK 메시지를 서버 주소로 송신
     sock.sendto(ack_message, server)
+    # 생성된 ACK 메시지의 블록 번호를 출력
     print(seq_num)
+    # 생성된 ACK 메시지를 출력
     print(ack_message)
 
 
@@ -93,8 +113,10 @@ file = open(filename, 'wb' if operation.lower() == 'get' else 'rb')
 expected_block_number = 1
 
 while True:
-    # 서버에서 데이터 수신
+    # 데이터를 최대 516바이트(헤더 + 데이터)까지 수신
+    # 서버에서 송신한 데이터와 송신 서버의 주소 정보를 반환
     data, server_new_socket = sock.recvfrom(516)
+    # 수신된 데이터의 처음 두 바이트를 빅엔디안 형식으로 해석하여 연산 코드(OPCODE)를 추출
     opcode = int.from_bytes(data[:2], 'big')
 
     if opcode == OPCODE['DATA']:
@@ -102,18 +124,22 @@ while True:
         block_number = int.from_bytes(data[2:4], 'big')
         if block_number == expected_block_number:
             # 블록 번호가 예상과 일치하면 ACK 전송
+            # 클라이언트가 서버로부터 제대로 된 데이터 블록을 수신했음을 서버에 알리는 역할
             send_ack(block_number, server_new_socket)
+            # 수신한 데이터에서 4번째 바이트부터 끝까지를 파일 블록으로 사용
             file_block = data[4:]
 
             # get 동작인 경우 받은 데이터를 파일에 작성
             if operation.lower() == 'get':
+                # TFTP 클라이언트가 서버로부터 받은 데이터 블록을 로컬 파일에 저장하는 역할
                 file.write(file_block)
 
             expected_block_number = expected_block_number + 1
             print(file_block.decode())
         else:
             # 순서가 맞지 않는 블록 번호에 대한 ACK 전송
-            send_ack(expected_block_number - 1, server_new_socket)  # 중복된 블록에 대해 이전 ACK 재전송
+            # 중복된 블록에 대해 이전 ACK 재전송
+            send_ack(expected_block_number - 1, server_new_socket)
 
     elif opcode == OPCODE['ERROR']:
     # 서버로부터 받은 ERROR 메시지 처리
@@ -150,6 +176,7 @@ if operation.lower() == 'put':
             try:
                 # 소켓 타임아웃 설정 및 데이터 메시지 전송
                 sock.settimeout(5)
+                # 패킹된 데이터 메시지를 서버로 전송
                 sock.sendto(data_message, server_new_socket)
 
                 expected_block_number += 1
@@ -164,6 +191,8 @@ if operation.lower() == 'put':
             ack_block_number = int.from_bytes(ack_data[2:], 'big')
 
             # ACK 수신 확인 및 로그 출력
+            # 수신된 ACK(확인 응답) 메시지의 연산 코드와 블록 번호를 확인하여 정상적인 ACK인지 검사
+            # ACK의 연산 코드가 OPCODE['ACK']이고, 블록 번호가 현재 블록 번호와 일치해야 함
             if ack_opcode == OPCODE['ACK'] and ack_block_number == block_number:
                 print(f"블록 {block_number} 전송 완료")
             else:
@@ -175,5 +204,4 @@ if operation.lower() == 'put':
 
     # 모든 블록을 전송한 후 파일 닫기
     file_to_send.close()
-
 
